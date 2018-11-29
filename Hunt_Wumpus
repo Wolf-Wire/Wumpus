@@ -1,0 +1,552 @@
+/* prog5Wumpus.cpp
+ Author: Nick Wolf 
+ Description: Navigate a maze to kill the Wumpus.
+ Implementation of a 1972 game by Gregory Yob.
+ The program uses a class and different functions, explanations are provided next to them.
+ Results of a program run are shown below:
+ */
+#include <iostream>  // for cin and cout
+#include <iomanip>   // for setw()
+#include <cctype>    // for toupper()
+#include <cstdlib>   // for rand() and srand()
+#include <ctime>     // to seed random number generator with time(0)
+using namespace std;
+
+// global constants
+#define MAX_LINE_LENGTH 81
+#define NUMBER_OF_ROOMS 20
+
+//--------------------------------------------------------------------------------
+void displayCave()
+{
+        cout<< "       ______18______             \n"
+            << "      /      |       \\           \n"
+            << "     /      _9__      \\          \n"
+            << "    /      /    \\      \\        \n"
+            << "   /      /      \\      \\       \n"
+            << "  17     8        10     19       \n"
+            << "  | \\   / \\      /  \\   / |    \n"
+            << "  |  \\ /   \\    /    \\ /  |    \n"
+            << "  |   7     1---2     11  |       \n"
+            << "  |   |    /     \\    |   |      \n"
+            << "  |   6----5     3---12   |       \n"
+            << "  |   |     \\   /     |   |      \n"
+            << "  |   \\       4      /    |      \n"
+            << "  |    \\      |     /     |      \n"
+            << "  \\     15---14---13     /       \n"
+            << "   \\   /            \\   /       \n"
+            << "    \\ /              \\ /        \n"
+            << "    16---------------20           \n"
+            << endl;
+}//end displayCave()
+
+//------------------------------------------------------------------------------------------
+// this class defines and stores each room with its features
+class Room {
+	public:
+		// Default Constructor 
+		Room ()
+		{
+			number = 0;           // number of the room 
+			adj1 = 0;             // the first adjacent room 
+			adj2 = 0;             // the second adjacent room
+			adj3 = 0;             // the third adjacent room
+			pit = false;          // to check if the room has a pit, by defalt false
+			bat = false;          // to check if the room has a bat, by defalt false
+			wumpus = false;       // to check if the room has a wumpus, by defalt false
+			hunter = false;       // to check if the room has the hunter, by defalt false
+			arrow = false;        // to check if the room has an arrow, by defalt false		
+      occupied = false;     // to check if the room has any elements in it, by defalt false	
+      hazard = "";		      // the hazard that corresponds with the boolian value
+		}	
+		// Fully-qualified constructor, used to set all fields
+		Room ( int theNumber, int theAdj1, int theAdj2, int theAdj3, bool thePit, bool theBat, 
+          bool theWumpus, bool theHunter, bool theArrow, bool isOccupied, string theHazard)
+		{
+			// Set the class fields
+			number = theNumber;
+			adj1 = theAdj1;
+			adj2 = theAdj2;
+			adj3 = theAdj3;      
+			pit = thePit;
+			bat = theBat;
+			wumpus = theWumpus;
+      hunter = theHunter;
+      arrow = theArrow;
+      occupied = isOccupied;
+			hazard = theHazard;
+		}			
+		// Get (accessor) functions
+		int getNumber() { return number; }
+		int getAdj1() { return adj1; }
+		int getAdj2() { return adj2; }
+		int getAdj3() { return adj3; }  
+		bool getPit() { return pit; }
+		bool getBat() { return bat; }
+		bool getWumpus() { return wumpus; }  
+		bool getHunter() { return hunter; }
+		bool getArrow() { return arrow; } 
+    bool getOccupied() { return occupied; }
+		string getHazard() { return hazard; }	
+		// Set (mutator) functions
+		void setNumber(int theNumber) { number = theNumber; }
+		void setAdj1(int theAdj1) { adj1 = theAdj1; }
+		void setAdj2(int theAdj2) { adj2 = theAdj2;	}
+		void setAdj3(int theAdj3) { adj3 = theAdj3;	}
+		void setPit (bool thePit) {pit = thePit;}
+		void setBat (bool theBat) {bat = theBat;}
+		void setWumpus (bool theWumpus) {wumpus = theWumpus;} 
+		void setHunter (bool theHunter) {hunter = theHunter;}
+		void setArrow (bool theArrow) {arrow = theArrow;} 
+    void setOccupied (bool isOccupied) {occupied = isOccupied;}
+		void setHazard (string theHazard) {hazard = theHazard;}
+	
+	private:
+		int number;
+		int adj1;
+		int adj2;
+		int adj3;  
+		bool pit;
+		bool bat;   
+    bool wumpus;
+    bool hunter;
+    bool arrow;
+    bool occupied;
+		string hazard;
+}; //end class Room
+
+//--------------------------------------------------------------------------------
+void displayInstructions()  // Description of game, allowed moves, codes, and hazards
+{
+    cout<< "Hunt the Wumpus:                                             \n"
+        << "The Wumpus lives in a completely dark cave of 20 rooms. Each \n"
+        << "room has 3 tunnels leading to other rooms.                   \n"
+        << "                                                             \n"
+        << "Hazards:                                                     \n"
+        << "1. Two rooms have bottomless pits in them.  If you go there you fall and die.  \n"
+        << "2. Two other rooms have super-bats.  If you go there, the bats grab you and    \n"
+        << "   fly you to some random room, which could be troublesome.  Then those bats go\n"
+        << "   to a new room different from where they came from and from the other bats.  \n"
+        << "3. The Wumpus is not bothered by the pits or bats, as he has sucker feet and   \n"
+        << "   is too heavy for bats to lift.  Usually he is asleep.  Two things wake      \n"
+        << "   him up: Anytime you shoot an arrow, or you entering his room.  When he      \n"
+        << "   wakes he moves if he is in an odd-numbered room, but stays still otherwise. \n"
+        << "   After that, if he is in your room, he eats you and you die!                 \n"
+        << "                                                                               \n"
+        << "Moves:                                                                         \n"
+        << "On each move you can do the following, where input can be upper or lower-case: \n"
+        << "1. Move into an adjacent room.  To move enter 'M' followed by a space and      \n"
+        << "   then a room number.                                                         \n"
+        << "2. Shoot your guided arrow through a list of up to three adjacent rooms, which \n"
+        << "   you specify.  Your arrow ends up in the final room.                         \n"
+        << "   To shoot enter 'S' followed by the number of rooms (1..3), and then the     \n"
+        << "   list of the desired number (up to 3) of adjacent room numbers, separated    \n"
+        << "   by spaces. If an arrow can't go a direction because there is no connecting  \n"
+        << "   tunnel, it ricochets and moves to the lowest-numbered adjacent room and     \n"
+        << "   continues doing this until it has traveled the designated number of rooms.  \n"
+        << "   If the arrow hits the Wumpus, you win! If the arrow hits you, you lose. You \n"
+        << "   automatically pick up the arrow if you go through a room with the arrow in  \n"
+        << "   it.                                                                         \n"
+        << "3. Enter 'R' to reset the person and hazard locations, useful for testing.     \n"
+        << "4. Enter 'C' to cheat and display current board positions.                     \n"
+        << "5. Enter 'D' to display this set of instructions.                              \n"
+        << "6. Enter 'P' to print the maze room layout.                                    \n"
+        << "7. Enter 'X' to exit the game.                                                 \n"
+        << "                                                                               \n"
+        << "Good luck!                                                                     \n"
+        << " \n"
+        << endl;
+}//end displayInstructions()
+
+//---------------------------------------------------------------------------------------------------
+// building the maze as a 2D array: first column = room number and the next 3 its adjacents in acsending order
+int map [20][4] = { 
+  map [0][0] = 1 , map [0][1] = 2 , map [0][2] = 5 , map [0][3] = 8 , 
+  map [1][0] = 2 , map [1][1] = 1 , map [1][2] = 3 , map [1][3] = 10 , 
+  map [2][0] = 3 , map [2][1] = 2 , map [2][2] = 4 , map [2][3] = 12 , 
+  map [3][0] = 4 , map [3][1] = 3 , map [3][2] = 5 , map [3][3] = 14 ,  
+  map [4][0] = 5 , map [4][1] = 1 , map [4][2] = 4 , map [4][3] = 6 , 
+  map [5][0] = 6 , map [5][1] = 5 , map [5][2] = 7 , map [5][3] = 15 , 
+  map [6][0] = 7 , map [6][1] = 6 , map [6][2] = 8 , map [6][3] = 17 , 
+  map [7][0] = 8 , map [7][1] = 1 , map [7][2] = 7 , map [7][3] = 9 ,  
+  map [8][0] = 9 , map [8][1] = 8 , map [8][2] = 10 , map [8][3] = 18 , 
+  map [9][0] = 10 , map [9][1] = 2 , map [9][2] = 9 , map [9][3] = 11 , 
+  map [10][0] = 11 , map [10][1] = 10 , map [10][2] = 12 , map [10][3] = 19 , 
+  map [11][0] = 12 , map [11][1] = 3 , map [11][2] = 11 , map [11][3] = 13 ,  
+  map [12][0] = 13 , map [12][1] = 12 , map [12][2] = 14 , map [12][3] = 20 , 
+  map [13][0] = 14 , map [13][1] = 4 , map [13][2] = 13 , map [13][3] = 15 ,
+  map [14][0] = 15 , map [14][1] = 6 , map [14][2] = 14 , map [14][3] = 16 , 
+  map [15][0] = 16 , map [15][1] = 15 , map [15][2] = 17 , map [15][3] = 20 , 
+  map [16][0] = 17 , map [16][1] = 7 , map [16][2] = 16 , map [16][3] = 18 ,
+  map [17][0] = 18 , map [17][1] = 9 , map [17][2] = 17 , map [17][3] = 19 , 
+  map [18][0] = 19 , map [18][1] = 11 , map [18][2] = 18 , map [18][3] = 20 , 
+  map [19][0] = 20 , map [19][1] = 13 , map [19][2] = 16 , map [19][3] = 19 };
+
+//--------------------------------------------------------------------------------------------------------
+//array of strings containing hazard messages
+string hazards [3] = {
+  " You smell a stench.",
+  " You feel a draft.",
+  " You hear rustling of bat wings."};
+
+//---------------------------------------------------------------------------------------------------------
+//array of string containing game play messgaes and errors 
+string textArray [16] = {
+  "Invalid move.  Please retry.", //0
+  "Woah... you're flying!\nYou've just been transported by bats to room ", //1
+  "Aaaaaaaaahhhhhh.... \n     You fall into a pit and die.", //2
+  "You hear a slithering sound, as the Wumpus slips away.\nWhew, that was close!", //3
+  "You briefly feel a slimy tentacled arm as your neck is snapped.\nIt is over.", //4
+  "Sorry, you can't shoot an arrow you don't have.  Go find it.", //5
+  "Congratulations, you found the arrow and can once again shoot.", //6
+  "Enter the number of rooms (1..3) into which you want to shoot, followed by the rooms themselves: ", //7
+  "Wumpus has just been pierced by your deadly arrow!\nCongratulations on your victory, you awesome hunter you.", //8
+  "	You just shot yourself.\nMaybe Darwin was right.  You're dead.", //9
+  " is not adjacent.  Arrow ricochets...", //10
+  "You just shot yourself, and are dying.\nIt didn't take long, you're dead.", //11
+  "Your arrow ricochet killed the Wumpus, you lucky dog!\nAccidental victory, but still you win!", //12
+  "Cheating! Game elements are in the following rooms:\nPlayer Wumpus Bats1 Bats2 Pit1 Pit2 Arrow", //13
+  "(Remember arrow value of -1 means it is with the person.)\nEnter the 7 room locations (1..20) for player, wumpus, bats1, bats2, pit1, pit2, and arrow:", //14 
+  "\nExiting Program ..." }; //15
+
+//--------------------------------------------------------------------------------
+int main()
+{   
+    // Seed the random number generator.  Change seed to time(0) to change output each time.
+    //srand(time(0));
+    srand(1);   // Use this version in what you turn in
+
+    Room roomsArray [20];  // the array of all rooms 
+    // randomizing each elemnt of the game and storing them in the rooms 
+    int bat1 = (rand() % 20) + 1 ;                // randomizing first bat
+    roomsArray[bat1-1].setBat(true);
+    int bat2 = (rand() % 20) + 1 ;                // randomizing second bat
+    if (roomsArray[bat2-1].getBat() == false) {   // checking for uniqeness
+        roomsArray[bat2-1].setBat(true);
+    }  
+    else {
+      bat2 = (rand() % 20) + 1;
+      roomsArray[bat2-1].setBat(true);
+    }
+    int pit1 = (rand() % 20) + 1 ;                // randomizing pit1 
+    if (roomsArray[pit1-1].getBat() == false) {   // so on and so forth for every variable
+        roomsArray[pit1-1].setPit(true);
+    }  
+    else {
+      pit1 = (rand() % 20) + 1;
+      roomsArray[pit1-1].setPit(true);
+    }  
+    int pit2 = (rand() % 20) + 1 ;
+    if (roomsArray[pit2-1].getBat() == false && roomsArray[pit2-1].getPit() == false ) {
+        roomsArray[pit2-1].setPit(true);
+    }  
+    else {
+      pit2 = (rand() % 20) + 1;
+      roomsArray[pit2-1].setPit(true);
+    }
+    int wump = (rand() % 20) + 1 ;
+    if (roomsArray[wump-1].getBat() == false && roomsArray[wump-1].getPit() == false ) {
+        roomsArray[wump-1].setWumpus(true);
+    }  
+    else {
+      wump = (rand() % 20) + 1;
+      roomsArray[wump-1].setWumpus(true);
+    }    
+    int hunt = (rand() % 20) + 1 ;
+    if (roomsArray[hunt-1].getBat() == false && roomsArray[hunt-1].getPit() == false && roomsArray[hunt-1].getWumpus() == false) {
+        roomsArray[hunt-1].setHunter(true);
+    }  
+    else {
+      hunt = (rand() % 20) + 1;
+      if (roomsArray[hunt-1].getBat() == false && roomsArray[hunt-1].getPit() == false && roomsArray[hunt-1].getWumpus() == false) {
+          roomsArray[hunt-1].setHunter(true);
+      }  
+      else {
+        hunt = (rand() % 20) + 1;
+        roomsArray[hunt-1].setHunter(true);
+      }
+    }
+    int arro = -1;          // setting arrow to be with the person when game starts
+    // intializing every room with corresponding values for each firld:
+    for (int i = 0 ; i < 20 ; i++) {
+        roomsArray[i].setNumber(map[i][0]);     // room number
+        roomsArray[i].setAdj1(map[i][1]);       // adjacent 1 = the lowest adjacent
+        roomsArray[i].setAdj2(map[i][2]);       // adjacent 2
+        roomsArray[i].setAdj3(map[i][3]);       // adjacent 3 = the highest adjacent
+        if (roomsArray[i].getPit() == true  || roomsArray[i].getBat() == true || roomsArray[i].getWumpus() == true
+            || roomsArray[i].getHunter() == true || roomsArray[i].getArrow() == true) {
+               roomsArray[i].setOccupied(true);  // checking what rooms are occupied
+        }
+    }    
+
+    int count = 1;
+    while (true) {                  // as long as the game is on
+      bool endGame = false;         // boolian variable for when the game ends, refer to instruction for details
+      placeHolder:                  // set aa flag to go back after commands
+      cout << "You are in room " << hunt << '.';
+      // checking for hazards to be printed if found
+      if (roomsArray[roomsArray[hunt-1].getAdj1()-1].getWumpus() == true ||
+          roomsArray[roomsArray[hunt-1].getAdj2()-1].getWumpus() == true ||
+          roomsArray[roomsArray[hunt-1].getAdj3()-1].getWumpus() == true) {
+          cout << hazards [0] ;
+      }
+      if (roomsArray[roomsArray[hunt-1].getAdj1()-1].getPit() == true ||
+          roomsArray[roomsArray[hunt-1].getAdj2()-1].getPit() == true ||
+          roomsArray[roomsArray[hunt-1].getAdj3()-1].getPit() == true) {
+          cout << hazards [1] ;
+      }    
+      if (roomsArray[roomsArray[hunt-1].getAdj1()-1].getBat() == true ||
+          roomsArray[roomsArray[hunt-1].getAdj2()-1].getBat() == true ||
+          roomsArray[roomsArray[hunt-1].getAdj3()-1].getBat() == true) {
+          cout << hazards [2] ;
+      }      
+      cout << endl << endl;
+      cout << count << ". Enter your move (or 'D' for directions): " ;
+      char move = ' ';
+      int play = 0;
+      cin >> move ;                        // getting user input
+      move = toupper (move);               // convert the letters to uppercase
+      if (move == 'M') {                   // if loop when user wants to move
+          cin >> play ;
+          if (play == roomsArray[hunt-1].getAdj1() ||
+              play == roomsArray[hunt-1].getAdj2() ||
+              play == roomsArray[hunt-1].getAdj3()) {
+              hunt = play; 
+              roomsArray[hunt-1].setHunter(true);
+              if (roomsArray[hunt-1].getPit() == true) {     // check the new room for pit 
+                cout << textArray[2] << endl;
+                endGame = true;
+              }
+              if (roomsArray[hunt-1].getBat() == true) {     // check the new room for bat 
+                roomsArray[hunt-1].setBat(false);            // leveanig the room and making it vacant
+                roomsArray[play-1].setHunter(false);
+                hunt = (rand() % 20)+1 ;                     // hunter's new room
+                if (roomsArray[hunt-1].getOccupied() == false) {
+                    roomsArray[hunt-1].setHunter(true);
+                }  
+                else {
+                  hunt = (rand() % 20)+1 ;
+                  roomsArray[hunt-1].setHunter(true);
+                }    
+                if (play == bat1) {                 // move the bat and its boolian value if it's bat1
+                    bat1 = (rand() % 20)+1 ;
+                    if (roomsArray[bat1-1].getOccupied() == false) {
+                        roomsArray[bat1-1].setBat(true);
+                    }  
+                    else {
+                      bat1 = (rand() % 20)+1 ;
+                      roomsArray[bat1-1].setBat(true);
+                    }                                                                                                   
+                }
+                else {                              // if it's bat2
+                    bat2 = (rand() % 20)+1 ;
+                    if (roomsArray[bat2-1].getOccupied() == false) {
+                        roomsArray[bat2-1].setBat(true);
+                    }  
+                    else {
+                      bat2 = (rand() % 20)+1 ;
+                      roomsArray[bat2-1].setBat(true);
+                    }   
+                }                
+                cout << textArray[1] << hunt << endl;
+              }                          
+              if (roomsArray[hunt-1].getWumpus() == true) {   // check the new room for wumpus
+                if ((hunt % 2) == 0) {
+                  cout << endl << textArray[4] << endl ;
+                  endGame = true;
+                }
+                else {
+                  cout << endl << textArray[3] << endl ;
+                  roomsArray[wump-1].setWumpus(false);
+                  wump = roomsArray[hunt-1].getAdj1();
+                  roomsArray[wump-1].setWumpus(true);
+                }
+              }
+              if (hunt == arro) {       // check for the arrow and pick it up if it's in there
+                arro = -1;
+                cout << endl << textArray[6] << endl;
+              }
+          }
+          else {             // invalid move
+              cout << textArray [0] << endl << endl; 
+              goto placeHolder;
+          }
+      }
+      if (move == 'S') {     // if loop for when user shoots
+        if (arro == -1) {
+          cout << endl << textArray[7];
+          int a1, a2, a3;
+          cin >> play ; 
+          if (play == 1) {
+            cin >> a1;         // one shot: if statements check the adjacents and else ricochets
+            if (a1 == roomsArray[hunt-1].getAdj1() ||
+                a1 == roomsArray[hunt-1].getAdj2() ||
+                a1 == roomsArray[hunt-1].getAdj3()) {
+                arro = a1;
+                if ( wump == a1){                           //Check  to see if Wumpus is killed
+                  cout << endl << textArray[8] << endl;
+                  endGame = true;
+                }  
+                if ( hunt == a1){                        //Check  to see if Player shot themself
+                  cout << endl << textArray[9] << endl;
+                  endGame = true;
+                }               
+            }
+            else {
+                arro = roomsArray[hunt-1].getAdj1();
+                cout << endl << "Room " << a1 << textArray[10] << endl;
+                if ( wump == arro){                //Check  to see if Wumpus is killed by ricochet
+                  cout << endl << textArray[12] << endl;
+                  endGame = true;
+                }  
+                if ( hunt == arro){                //Check  to see if player is shot by ricochet
+                  cout << endl << textArray[11] << endl;
+                  endGame = true;
+                }              
+            }                
+          }
+          if (play == 2) {  
+            cin >> a1 >> a2;      // two shots: if statements check the adjacents and else ricochets
+            if (a1 == roomsArray[hunt-1].getAdj1() || a1 == roomsArray[hunt-1].getAdj2() || a1 == roomsArray[hunt-1].getAdj3()) {  
+                if (a1 == roomsArray[a2-1].getAdj1() || a1 == roomsArray[a2-1].getAdj2() || a1 == roomsArray[a2-1].getAdj3()) {
+                    arro = a2;
+                    if ( wump == a2 || wump == a1 ){           //Check  to see if Wumpus is killed
+                      cout << endl << textArray[8] << endl;
+                      endGame = true;
+                    }  
+                    if ( hunt == a2 || hunt == a1){           //Check  to see if Player shot themself
+                      cout << endl << textArray[9] << endl;
+                      endGame = true;
+                    }              
+                }
+                else {
+                    arro = roomsArray[a1-1].getAdj1();
+                    cout << endl << "Room " << a2 << textArray[10] << endl;
+                    if ( wump == arro){                 //Check  to see if Wumpus is killed by ricochet
+                      cout << endl << textArray[12] << endl;
+                      endGame = true;
+                    }   
+                    if ( hunt == arro){                 //Check  to see if player is shot by ricochet
+                      cout << endl << textArray[11] << endl;
+                      endGame = true;
+                    }                  
+                }
+            }
+            else {
+                arro = roomsArray[hunt-1].getAdj1();
+                cout << endl << "Room " << a1 << textArray[10] << endl;
+                if ( wump == arro){                     //Check  to see if Wumpus is killed by ricochet
+                  cout << endl << textArray[12] << endl;
+                  endGame = true;
+                }  
+                if ( hunt == arro){                     //Check  to see if player is shot by ricochet
+                  cout << endl << textArray[11] << endl;
+                  endGame = true;
+                }              
+            }            
+          }
+          if (play == 3) {
+            cin >> a1 >> a2 >> a3;       // three shots: if statements check the adjacents and else ricochets            
+            if (a1 == roomsArray[hunt-1].getAdj1() || a1 == roomsArray[hunt-1].getAdj2() || a1 == roomsArray[hunt-1].getAdj3()) {  
+                if (a1 == roomsArray[a2-1].getAdj1() || a1 == roomsArray[a2-1].getAdj2() || a1 == roomsArray[a2-1].getAdj3()) {            
+                    if (a2 == roomsArray[a3-1].getAdj1() || a2 == roomsArray[a3-1].getAdj2() || a2 == roomsArray[a3-1].getAdj3()) {
+                        arro = a3;
+                        if ( wump == a3 || wump == a2 || wump == a1 ){     //Check  to see if Wumpus is killed
+                          cout << endl << textArray[8] << endl;
+                          endGame = true;
+                        }
+                        if ( hunt == a3 || hunt == a2 || hunt == a1 ){   //Check  to see if Player shot themself
+                          cout << endl << textArray[9] << endl;
+                          endGame = true;
+                        }              
+                    }
+                    else {
+                        arro = roomsArray[a2-1].getAdj1();
+                        cout << endl << "Room " << a3 << textArray[10] << endl;
+                        if ( wump == arro){                       //Check  to see if Wumpus is killed by ricochet
+                          cout << endl << textArray[12] << endl;
+                          endGame = true;
+                        } 
+                        if ( hunt == arro){                        //Check  to see if player is shot by ricochet
+                          cout << endl << textArray[11] << endl;
+                          endGame = true;
+                        }              
+                     }
+                }
+                else {
+                    arro = roomsArray[a1-1].getAdj1();
+                    cout << endl << "Room " << a2 << textArray[10] << endl;
+                    if ( wump == arro){                          //Check  to see if Wumpus is killed by ricochet
+                      cout << endl << textArray[12] << endl;
+                      endGame = true;
+                    }   
+                    if ( hunt == arro){                           //Check  to see if player is shot by ricochet
+                      cout << endl << textArray[11] << endl;
+                      endGame = true;
+                    }                  
+                }
+              }
+              else {
+                  arro = roomsArray[hunt-1].getAdj1();
+                  cout << endl << "Room " << a1 << textArray[10] << endl;
+                  if ( wump == arro){                          //Check  to see if Wumpus is killed by ricochet
+                    cout << endl << textArray[12] << endl;
+                    endGame = true;
+                  }  
+                  if ( hunt == arro){                          //Check  to see if player is shot by ricochet
+                    cout << endl << textArray[11] << endl;
+                    endGame = true;
+                  }              
+                }               
+            }                        
+          if (endGame == false) {             // if not killed move to the lowest adjacent room after each shot
+            roomsArray[wump-1].setWumpus(false);
+            wump = roomsArray[wump-1].getAdj1();
+            roomsArray[wump-1].setWumpus(true);           
+          }           
+        }
+        else {                               // when there is no arrow
+          cout << endl << textArray [5] << endl;
+        }
+          
+      }
+      if (move == 'R') {                    // if loop for when user wants to reset
+        cout << endl << textArray[14] << endl ;
+        roomsArray[hunt-1].setHunter(false);
+        roomsArray[wump-1].setWumpus(false);
+        roomsArray[bat1-1].setBat(false);
+        roomsArray[bat2-1].setBat(false);
+        roomsArray[pit1-1].setPit(false);
+        roomsArray[pit2-1].setPit(false);        
+        cin >> hunt >> wump >> bat1 >> bat2 >> pit1 >> pit2 >> arro;
+        cout << endl << endl;
+        roomsArray[hunt-1].setHunter(true);
+        roomsArray[wump-1].setWumpus(true);
+        roomsArray[bat1-1].setBat(true);
+        roomsArray[bat2-1].setBat(true);
+        roomsArray[pit1-1].setPit(true);
+        roomsArray[pit2-1].setPit(true);
+        goto placeHolder;             
+      }
+      if (move == 'C') {                      // if loop for when user wants to cheat
+        cout << endl << textArray[13] << endl ;
+        cout << setw(4) << hunt << setw(7) << wump << setw(7) << bat1 << setw(6) << bat2 
+             << setw(5) << pit1 << setw(5) << pit2 << setw(6) << arro << endl << endl ;
+        goto placeHolder;        
+      }      
+      if (move == 'D') {                      // if loop for when user wants direstions
+        displayInstructions();   
+        goto placeHolder;
+      } 
+      if (move == 'P') {                     // if loop for when user wants the game plan
+        displayCave();  
+        goto placeHolder;        
+      }  
+      if (move == 'X' || endGame == true) {  // if loop for exit under various circumistances
+        cout << endl << textArray[15] << endl;
+        exit (-1);
+      }
+      count++;
+    } // end while (true) = game over
+  return 0; // keeping c++ happy!
+}//end main()
